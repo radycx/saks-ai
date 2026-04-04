@@ -367,7 +367,8 @@ function App() {
       {/* 顶部导航 */}
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          {/* 第一行：标题 */}
+          <div className="flex justify-between items-center h-12">
             <div className="flex items-center">
               <BookOpen className="h-6 w-6 text-blue-600 mr-2" />
               <h1 className="text-xl font-bold text-gray-900">
@@ -378,7 +379,8 @@ function App() {
               )}
             </div>
             
-            <div className="flex items-center space-x-4">
+            {/* PC端：右侧信息 */}
+            <div className="hidden md:flex items-center space-x-4">
               {role === 'user' && currentUser && (
                 <div className="flex items-center text-sm text-gray-600">
                   <Phone className="h-4 w-4 mr-1" />
@@ -399,6 +401,30 @@ function App() {
               )}
             </div>
           </div>
+          
+          {/* 第二行：用户信息（仅移动端显示） */}
+          {(role === 'user' || role === 'admin') && (
+            <div className="md:hidden flex justify-between items-center py-2 border-t text-sm">
+              {role === 'user' && currentUser && (
+                <div className="flex items-center text-gray-600">
+                  <Phone className="h-3 w-3 mr-1" />
+                  <span>{currentUser.phone}</span>
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    剩余 {currentUser.available_questions} 题
+                  </Badge>
+                </div>
+              )}
+              
+              {role === 'admin' && (
+                <Badge variant="default" className="text-xs">管理员</Badge>
+              )}
+              
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="h-7 px-2 text-xs">
+                <LogOut className="h-3 w-3 mr-1" />
+                退出
+              </Button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -746,6 +772,7 @@ function UserView({
                 <AnswerTab 
                   user={user} 
                   onRefreshUser={onRefreshUser}
+                  systemConfig={systemConfig}
                 />
               )}
               {activeTab === 'payment' && (
@@ -814,6 +841,7 @@ function UserView({
                 <AnswerTab 
                   user={user} 
                   onRefreshUser={onRefreshUser}
+                  systemConfig={systemConfig}
                 />
               )}
               {activeTab === 'payment' && (
@@ -839,16 +867,33 @@ function UserView({
 // ============================================
 function AnswerTab({ 
   user, 
-  onRefreshUser 
+  onRefreshUser,
+  systemConfig
 }: { 
   user: RegularUser
   onRefreshUser: () => void
+  systemConfig: Record<string, string>
 }) {
   const [searchText, setSearchText] = useState('')
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [showLimitDialog, setShowLimitDialog] = useState(false)
+
+  // 处理双引号内容为红色加粗
+  const renderHintText = (text: string) => {
+    const parts = text.split(/("[^"]*")/g)
+    return parts.map((part, index) => {
+      if (part.startsWith('"') && part.endsWith('"')) {
+        // 去除双引号并显示红色加粗
+        const content = part.slice(1, -1)
+        return (
+          <span key={index} className="text-red-600 font-bold">{content}</span>
+        )
+      }
+      return <span key={index}>{part}</span>
+    })
+  }
 
   const handleSearch = async () => {
     if (user.available_questions <= 0) {
@@ -977,23 +1022,21 @@ function AnswerTab({
       {/* 题目搜索区域 */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-col md:flex-row md:items-center gap-2">
-            <CardTitle className="text-lg shrink-0">题目搜索</CardTitle>
-            <div className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded border border-blue-100 line-clamp-2 md:line-clamp-1">
-              初次注册可试用2题，请输入准确的食安考试或练习题目内容，可以仅输入题目开头的部分内容，如<span className="text-red-600 font-bold">6-8个字</span>，AI自动匹配生成。由于技术原因，可能会有个别食安考试题目无法识别，输入非食安考题无法生成题目和答案（仅限福建省范围）
-            </div>
+          <CardTitle className="text-lg">题目生成</CardTitle>
+          <div className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded border border-blue-100">
+            {renderHintText(systemConfig.answer_hint || '')}
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
-            <Input
+          <div className="flex flex-col gap-2">
+            <Textarea
               placeholder="请输入题目内容，至少6个字"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="flex-1"
+              className="min-h-[120px] resize-none"
+              rows={5}
             />
-            <Button onClick={handleSearch} disabled={loading}>
+            <Button onClick={handleSearch} disabled={loading} className="self-end">
               {loading ? '搜索中...' : '生成题目'}
             </Button>
           </div>
@@ -1275,14 +1318,11 @@ function PaymentTab({
       </Card>
 
       {/* 上传缴费记录 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>上传缴费记录</CardTitle>
-          <CardDescription>请上传缴费凭证图片</CardDescription>
-        </CardHeader>
+      <Card className="gap-0">
         <CardContent className="space-y-4">
+          <CardTitle>上传缴费记录</CardTitle>
           <div>
-            <Label>缴费金额（元）</Label>
+            <Label className="mb-2 block">缴费金额（元）</Label>
             <Input
               type="number"
               placeholder="30-60元"
@@ -1294,7 +1334,10 @@ function PaymentTab({
           </div>
           
           <div>
-            <Label>缴费凭证</Label>
+            <Label className="mb-2 block">
+              上传凭证：请上传微信付款凭证截图<br/>
+              <span className="text-xs text-gray-500">（付款需留言备注用户手机号）</span>
+            </Label>
             <div className="mt-2">
               <Input
                 type="file"
@@ -1429,6 +1472,8 @@ function PaymentTab({
 function HistoryTab({ user }: { user: RegularUser }) {
   const [records, setRecords] = useState<UsageRecord[]>([])
   const [loading, setLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     loadUsageRecords()
@@ -1436,6 +1481,7 @@ function HistoryTab({ user }: { user: RegularUser }) {
 
   const loadUsageRecords = async () => {
     setLoading(true)
+    setCurrentPage(1)
     
     try {
       const { data, error } = await supabase
@@ -1453,11 +1499,51 @@ function HistoryTab({ user }: { user: RegularUser }) {
     }
   }
 
+  const totalPages = Math.ceil(records.length / pageSize)
+  const paginatedRecords = records.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  )
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>使用记录</CardTitle>
-        <CardDescription>您的历史使用记录</CardDescription>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <CardTitle>使用记录</CardTitle>
+            <CardDescription>
+              您的历史使用记录
+              {records.length > 0 && (
+                <span className="ml-2 text-blue-600">共 {records.length} 次</span>
+              )}
+            </CardDescription>
+          </div>
+          
+          {/* 分页控件 */}
+          {totalPages > 1 && (
+            <div className="flex items-center space-x-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                上一页
+              </Button>
+              <span className="text-sm text-gray-500 min-w-[60px] text-center">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                下一页
+              </Button>
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -1466,7 +1552,7 @@ function HistoryTab({ user }: { user: RegularUser }) {
           <p className="text-center py-4 text-gray-500">暂无使用记录</p>
         ) : (
           <div className="space-y-3">
-            {records.map((record) => (
+            {paginatedRecords.map((record) => (
               <div key={record.id} className="border rounded-lg p-3">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -1503,7 +1589,7 @@ function AdminView({
   onConfigUpdate: () => void
   adminUser: string | null
 }) {
-  const [activeTab, setActiveTab] = useState<'questions' | 'users' | 'payments' | 'stats' | 'settings'>('questions')
+  const [activeTab, setActiveTab] = useState<'questions' | 'users' | 'payments' | 'stats' | 'settings'>('payments')
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
 
   // 双重监听：resize + matchMedia，确保DevTools设备切换时也能正确更新
@@ -1548,6 +1634,15 @@ function AdminView({
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-[9999]">
           <div className="flex justify-around items-center h-16">
             <button
+              onClick={() => setActiveTab('payments')}
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                activeTab === 'payments' ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
+              <CreditCard className="h-5 w-5" />
+              <span className="text-xs mt-1">缴费</span>
+            </button>
+            <button
               onClick={() => setActiveTab('questions')}
               className={`flex flex-col items-center justify-center flex-1 h-full ${
                 activeTab === 'questions' ? 'text-blue-600' : 'text-gray-600'
@@ -1564,15 +1659,6 @@ function AdminView({
             >
               <Users className="h-5 w-5" />
               <span className="text-xs mt-1">用户</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('payments')}
-              className={`flex flex-col items-center justify-center flex-1 h-full ${
-                activeTab === 'payments' ? 'text-blue-600' : 'text-gray-600'
-              }`}
-            >
-              <CreditCard className="h-5 w-5" />
-              <span className="text-xs mt-1">缴费</span>
             </button>
             <button
               onClick={() => setActiveTab('stats')}
@@ -1603,18 +1689,16 @@ function AdminView({
       <div className={`box-border ${isMobile ? 'pb-16 px-2 w-full max-w-full' : 'px-6'}`}>
         {isMobile ? (
           <div className="w-full max-w-full min-w-0">
-            <div className="w-full overflow-x-hidden break-words">
-              {activeTab === 'questions' && <AdminQuestionsTab />}
-              {activeTab === 'users' && <AdminUsersTab />}
-              {activeTab === 'payments' && <AdminPaymentsTab />}
-              {activeTab === 'stats' && <AdminStatsTab />}
-              {activeTab === 'settings' && (
-                <AdminSettingsTab 
-                  systemConfig={systemConfig}
-                  onConfigUpdate={onConfigUpdate}
-                />
-              )}
-            </div>
+            {activeTab === 'questions' && <AdminQuestionsTab />}
+            {activeTab === 'users' && <AdminUsersTab />}
+            {activeTab === 'payments' && <AdminPaymentsTab />}
+            {activeTab === 'stats' && <AdminStatsTab />}
+            {activeTab === 'settings' && (
+              <AdminSettingsTab 
+                systemConfig={systemConfig}
+                onConfigUpdate={onConfigUpdate}
+              />
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -1626,6 +1710,17 @@ function AdminView({
                 </CardHeader>
                 <CardContent className="p-0">
                   <nav className="space-y-1">
+                    <button
+                      onClick={() => setActiveTab('payments')}
+                      className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+                        activeTab === 'payments' 
+                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <CreditCard className="h-4 w-4 mr-3" />
+                      缴费管理
+                    </button>
                     <button
                       onClick={() => setActiveTab('questions')}
                       className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
@@ -1647,17 +1742,6 @@ function AdminView({
                     >
                       <Users className="h-4 w-4 mr-3" />
                       用户管理
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('payments')}
-                      className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                        activeTab === 'payments' 
-                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <CreditCard className="h-4 w-4 mr-3" />
-                      缴费管理
                     </button>
                     <button
                       onClick={() => setActiveTab('stats')}
@@ -1762,54 +1846,62 @@ function AdminQuestionsTab() {
   }, [])
 
   return (
-    <Card className="w-full overflow-x-hidden">
-      <CardHeader className="px-4 py-3">
-        <CardTitle className="text-lg">题库管理</CardTitle>
-        <CardDescription>查询和管理题库内容</CardDescription>
-      </CardHeader>
-      <CardContent className="px-4 py-3">
-        {/* 查询条件 */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-          <Select 
-            value={searchParams.business_type} 
-            onValueChange={(v) => setSearchParams(p => ({ ...p, business_type: v }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="选择业态类型" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="食品生产">食品生产</SelectItem>
-              <SelectItem value="食品流通">食品流通</SelectItem>
-              <SelectItem value="餐饮">餐饮</SelectItem>
-              <SelectItem value="特殊食品生产">特殊食品生产</SelectItem>
-              <SelectItem value="特殊食品流通">特殊食品流通</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select 
-            value={searchParams.question_type} 
-            onValueChange={(v) => setSearchParams(p => ({ ...p, question_type: v }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="选择题型" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="单选题">单选题</SelectItem>
-              <SelectItem value="多选题">多选题</SelectItem>
-              <SelectItem value="判断题">判断题</SelectItem>
-            </SelectContent>
-          </Select>
-          
+    <Card className="w-full overflow-x-hidden pb-3" style={{ paddingTop: '0', gap: '0' }}>
+      <div className="px-6 pt-0 pb-2">
+        <div className="text-lg font-semibold">题库管理</div>
+      </div>
+      <CardContent className="px-4 py-3 pt-0">
+        {/* 查询条件 - 移动端优化紧凑布局 */}
+        <div className="space-y-2 mb-3">
+          <div className="flex gap-2">
+            <div className="flex items-center flex-1 min-w-0">
+              <Label className="text-xs text-gray-500 shrink-0 mr-1">业态</Label>
+              <Select 
+                value={searchParams.business_type} 
+                onValueChange={(v) => setSearchParams(p => ({ ...p, business_type: v }))}
+              >
+                <SelectTrigger className="h-8 text-sm w-full">
+                  <SelectValue placeholder="选择业态类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部</SelectItem>
+                  <SelectItem value="食品生产">食品生产</SelectItem>
+                  <SelectItem value="食品流通">食品流通</SelectItem>
+                  <SelectItem value="餐饮">餐饮</SelectItem>
+                  <SelectItem value="特殊食品生产">特殊食品生产</SelectItem>
+                  <SelectItem value="特殊食品流通">特殊食品流通</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center flex-1 min-w-0">
+              <Label className="text-xs text-gray-500 shrink-0 mr-1">题型</Label>
+              <Select 
+                value={searchParams.question_type} 
+                onValueChange={(v) => setSearchParams(p => ({ ...p, question_type: v }))}
+              >
+                <SelectTrigger className="h-8 text-sm w-full">
+                  <SelectValue placeholder="选择题型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部</SelectItem>
+                  <SelectItem value="单选题">单选题</SelectItem>
+                  <SelectItem value="多选题">多选题</SelectItem>
+                  <SelectItem value="判断题">判断题</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+                
           <div className="flex gap-2">
             <Input
               placeholder="题目内容模糊查找"
               value={searchParams.content}
               onChange={(e) => setSearchParams(p => ({ ...p, content: e.target.value }))}
               onKeyDown={(e) => e.key === 'Enter' && loadQuestions(0)}
+              className="h-9 text-sm"
             />
-            <Button onClick={() => loadQuestions(0)}>
+            <Button size="sm" onClick={() => loadQuestions(0)} className="h-9 px-3">
               <Search className="h-4 w-4" />
             </Button>
           </div>
@@ -1971,123 +2063,136 @@ function AdminUsersTab() {
     <Card>
       <CardHeader>
         <CardTitle>用户管理</CardTitle>
-        <CardDescription>管理注册用户</CardDescription>
       </CardHeader>
       <CardContent>
-        {/* 查询条件 */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
-          <Input
-            placeholder="手机号"
-            value={searchParams.phone}
-            onChange={(e) => setSearchParams(p => ({ ...p, phone: e.target.value }))}
-          />
-          <Select 
-            value={searchParams.city} 
-            onValueChange={(v) => setSearchParams(p => ({ ...p, city: v }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="选择市" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              {Object.keys(FUJIAN_CITIES).map(city => (
-                <SelectItem key={city} value={city}>{city}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select 
-            value={searchParams.status} 
-            onValueChange={(v) => setSearchParams(p => ({ ...p, status: v }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="用户状态" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="正常">正常</SelectItem>
-              <SelectItem value="禁用">禁用</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500 shrink-0">从</span>
+        {/* 查询条件 - 移动端优化紧凑布局 */}
+        <div className="space-y-2 mb-4">
+          <div className="flex gap-2">
             <Input
-              type="date"
-              value={searchParams.startDate}
-              onChange={(e) => setSearchParams(p => ({ ...p, startDate: e.target.value }))}
+              placeholder="手机号"
+              value={searchParams.phone}
+              onChange={(e) => setSearchParams(p => ({ ...p, phone: e.target.value }))}
+              className="h-8 text-sm flex-1"
             />
+            <Select 
+              value={searchParams.status} 
+              onValueChange={(v) => setSearchParams(p => ({ ...p, status: v }))}
+            >
+              <SelectTrigger className="h-8 text-sm w-24 shrink-0">
+                <SelectValue placeholder="状态" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="正常">正常</SelectItem>
+                <SelectItem value="禁用">禁用</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={loadUsers} className="h-8 px-3 shrink-0">
+              <Search className="h-4 w-4 mr-1" />
+              查询
+            </Button>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500 shrink-0">至</span>
-            <Input
-              type="date"
-              value={searchParams.endDate}
-              onChange={(e) => setSearchParams(p => ({ ...p, endDate: e.target.value }))}
-            />
+          <div className="flex gap-2">
+            <div className="flex items-center flex-1 min-w-0">
+              <Select 
+                value={searchParams.city} 
+                onValueChange={(v) => setSearchParams(p => ({ ...p, city: v }))}
+              >
+                <SelectTrigger className="h-8 text-sm w-full">
+                  <SelectValue placeholder="选择市" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部</SelectItem>
+                  {Object.keys(FUJIAN_CITIES).map(city => (
+                    <SelectItem key={city} value={city}>{city}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center flex-1 min-w-0">
+              <Label className="text-xs text-gray-500 shrink-0 mr-1">从</Label>
+              <Input
+                type="date"
+                value={searchParams.startDate}
+                onChange={(e) => setSearchParams(p => ({ ...p, startDate: e.target.value }))}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="flex items-center flex-1 min-w-0">
+              <Label className="text-xs text-gray-500 shrink-0 mr-1">至</Label>
+              <Input
+                type="date"
+                value={searchParams.endDate}
+                onChange={(e) => setSearchParams(p => ({ ...p, endDate: e.target.value }))}
+                className="h-8 text-sm"
+              />
+            </div>
           </div>
-          <Button onClick={loadUsers}>
-            <Search className="h-4 w-4 mr-1" />
-            查询
-          </Button>
         </div>
 
-        {/* 用户列表 */}
+        {/* 用户列表 - 移动端卡片布局 */}
         {loading ? (
           <p className="text-center py-4">加载中...</p>
+        ) : users.length === 0 ? (
+          <p className="text-center py-4 text-gray-500">暂无用户</p>
         ) : (
-          <div className="text-sm text-gray-500 mb-2">
-            共 {users.length} 位用户
-          </div>
-        )}
-        
-        <ScrollArea className="h-[50vh] sm:h-[500px]">
-          <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>手机号</TableHead>
-                <TableHead>地区</TableHead>
-                <TableHead>可用题数</TableHead>
-                <TableHead>总缴费</TableHead>
-                <TableHead>缴费次数</TableHead>
-                <TableHead>最后缴费</TableHead>
-                <TableHead>注册日期</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            <div className="text-sm text-gray-500 mb-2">
+              共 {users.length} 位用户
+            </div>
+            
+            <div className="space-y-2">
               {users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell>{u.phone}</TableCell>
-                  <TableCell>{u.city} {u.district}</TableCell>
-                  <TableCell>{u.available_questions}</TableCell>
-                  <TableCell>¥{u.total_payment_amount}</TableCell>
-                  <TableCell>{u.valid_payment_count}</TableCell>
-                  <TableCell>{formatDateOnly(u.last_payment_date || '')}</TableCell>
-                  <TableCell>{formatDateOnly(u.created_at || '')}</TableCell>
-                  <TableCell>
-                    <Badge variant={u.status === '正常' ? 'default' : 'destructive'}>
-                      {u.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => {
-                        setEditingUser(u)
-                        setEditDialogOpen(true)
-                      }}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
+                <div key={u.id} className="border rounded-lg p-2.5">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm">{u.phone}</p>
+                      <Badge variant={u.status === '正常' ? 'default' : 'destructive'} className="text-xs px-1.5 py-0 h-5">
+                        {u.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-400">{u.city} {u.district}</p>
+                  </div>
+                  <div className="flex gap-3 text-xs mb-1.5">
+                    <div className="flex items-center">
+                      <span className="text-gray-500">题数:</span>
+                      <span className="ml-1 font-medium">{u.available_questions}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-gray-500">缴费:</span>
+                      <span className="ml-1 font-medium">¥{u.total_payment_amount}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-gray-500">次数:</span>
+                      <span className="ml-1">{u.valid_payment_count}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 text-xs mb-2">
+                    <div className="flex items-center">
+                      <span className="text-gray-500">最后缴费:</span>
+                      <span className="ml-1">{formatDateOnly(u.last_payment_date || '')}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-gray-500">注册:</span>
+                      <span className="ml-1">{formatDateOnly(u.created_at || '')}</span>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="w-full h-7 text-xs px-2"
+                    onClick={() => {
+                      setEditingUser(u)
+                      setEditDialogOpen(true)
+                    }}
+                  >
+                    <Edit className="h-3 w-3 mr-1" /> 编辑
+                  </Button>
+                </div>
               ))}
-            </TableBody>
-          </Table>
-          </div>
-        </ScrollArea>
+            </div>
+          </>
+        )}
       </CardContent>
 
       {/* 编辑对话框 */}
@@ -2167,6 +2272,7 @@ function AdminPaymentsTab() {
   const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(null)
   const [auditDialogOpen, setAuditDialogOpen] = useState(false)
   const [loadingImage, setLoadingImage] = useState(false)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
   
   // 分页状态
   const [page, setPage] = useState(0)
@@ -2222,7 +2328,31 @@ function AdminPaymentsTab() {
     }
   }
 
-  // 点击查看详情时，才按需加载图片内容
+  // 点击查看凭证时，才按需加载图片内容
+  const handleViewProof = async (payment: PaymentRecord) => {
+    setSelectedPayment(payment)
+    setLoadingImage(true)
+
+    try {
+      const { data, error } = await supabase
+        .from('payment_records')
+        .select('payment_image_url')
+        .eq('id', payment.id)
+        .single()
+      
+      if (error) throw error
+      if (data && data.payment_image_url) {
+        setPreviewImage(data.payment_image_url)
+      }
+    } catch (e) {
+      console.error('加载图片失败:', e)
+      toast.error('图片加载失败')
+    } finally {
+      setLoadingImage(false)
+    }
+  }
+
+  // 点击审核时，加载完整记录
   const handleViewDetail = async (payment: PaymentRecord) => {
     setSelectedPayment(payment)
     setAuditForm({
@@ -2234,7 +2364,6 @@ function AdminPaymentsTab() {
     setLoadingImage(true)
 
     try {
-      // 按需加载完整的记录（包含图片 Base64）
       const { data, error } = await supabase
         .from('payment_records')
         .select('payment_image_url')
@@ -2320,117 +2449,128 @@ function AdminPaymentsTab() {
     <Card>
       <CardHeader>
         <CardTitle>缴费管理</CardTitle>
-        <CardDescription>审核用户缴费记录</CardDescription>
       </CardHeader>
       <CardContent>
-        {/* 查询条件 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Input
-            placeholder="手机号"
-            value={searchParams.phone}
-            onChange={(e) => setSearchParams(p => ({ ...p, phone: e.target.value }))}
-          />
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500 shrink-0">从</span>
+        {/* 查询条件 - 移动端优化紧凑布局 */}
+        <div className="space-y-2 mb-4">
+          <div className="flex gap-2">
             <Input
-              type="date"
-              value={searchParams.startDate}
-              onChange={(e) => setSearchParams(p => ({ ...p, startDate: e.target.value }))}
+              placeholder="手机号"
+              value={searchParams.phone}
+              onChange={(e) => setSearchParams(p => ({ ...p, phone: e.target.value }))}
+              className="h-8 text-sm flex-1"
             />
+            <Button size="sm" onClick={() => loadPayments(0)} className="h-8 px-3 shrink-0">
+              <Search className="h-4 w-4 mr-1" />
+              查询
+            </Button>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500 shrink-0">至</span>
-            <Input
-              type="date"
-              value={searchParams.endDate}
-              onChange={(e) => setSearchParams(p => ({ ...p, endDate: e.target.value }))}
-            />
+          <div className="flex gap-2">
+            <div className="flex items-center flex-1 min-w-0">
+              <Label className="text-xs text-gray-500 shrink-0 mr-1">从</Label>
+              <Input
+                type="date"
+                value={searchParams.startDate}
+                onChange={(e) => setSearchParams(p => ({ ...p, startDate: e.target.value }))}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="flex items-center flex-1 min-w-0">
+              <Label className="text-xs text-gray-500 shrink-0 mr-1">至</Label>
+              <Input
+                type="date"
+                value={searchParams.endDate}
+                onChange={(e) => setSearchParams(p => ({ ...p, endDate: e.target.value }))}
+                className="h-8 text-sm"
+              />
+            </div>
           </div>
-          <Button onClick={() => loadPayments(0)}>
-            <Search className="h-4 w-4 mr-1" />
-            查询
-          </Button>
         </div>
 
+        {/* 记录列表 - 移动端卡片布局 */}
         {loading ? (
           <p className="text-center py-4">加载中...</p>
+        ) : payments.length === 0 ? (
+          <p className="text-center py-4 text-gray-500">暂无缴费记录</p>
         ) : (
-          <div className="flex justify-between items-center text-sm text-gray-500 mb-2">
-            <div>
-              共 {totalCount} 条记录
-              {payments.filter(p => p.audit_status === '待审核').length > 0 && (
-                <span className="text-red-500 ml-2">
-                  (本页待审核: {payments.filter(p => p.audit_status === '待审核').length})
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                disabled={page === 0}
-                onClick={() => loadPayments(page - 1)}
-              >
-                上一页
-              </Button>
-              <span>第 {page + 1} 页 / 共 {Math.ceil(totalCount / pageSize)} 页</span>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                disabled={(page + 1) * pageSize >= totalCount}
-                onClick={() => loadPayments(page + 1)}
-              >
-                下一页
-              </Button>
-            </div>
-          </div>
-        )}
-        
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>手机号</TableHead>
-                <TableHead>缴费金额</TableHead>
-                <TableHead>上传时间</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payments.map((p) => (
-                <TableRow 
-                  key={p.id}
-                  className={p.audit_status === '待审核' ? 'bg-red-50' : ''}
+          <>
+            <div className="flex justify-between items-center text-sm text-gray-500 mb-2">
+              <div>
+                共 {totalCount} 条记录
+                {payments.filter(p => p.audit_status === '待审核').length > 0 && (
+                  <span className="text-red-500 ml-2">
+                    (本页待审核: {payments.filter(p => p.audit_status === '待审核').length})
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={page === 0}
+                  onClick={() => loadPayments(page - 1)}
                 >
-                  <TableCell>{p.phone}</TableCell>
-                  <TableCell>¥{p.payment_amount}</TableCell>
-                  <TableCell>{formatDate(p.upload_date)}</TableCell>
-                  <TableCell>
+                  上一页
+                </Button>
+                <span>第 {page + 1} 页 / 共 {Math.ceil(totalCount / pageSize)} 页</span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={(page + 1) * pageSize >= totalCount}
+                  onClick={() => loadPayments(page + 1)}
+                >
+                  下一页
+                </Button>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              {payments.map((p) => (
+                <div key={p.id} className={`border rounded-lg p-3 ${p.audit_status === '待审核' ? 'bg-red-50' : ''}`}>
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-medium text-sm">{p.phone}</p>
+                      <p className="text-sm text-gray-500">¥{p.payment_amount}</p>
+                      <p className="text-xs text-gray-400">{formatDate(p.upload_date)}</p>
+                    </div>
                     <Badge 
                       variant={
                         p.audit_status === '已通过' ? 'default' :
                         p.audit_status === '已拒绝' ? 'destructive' :
                         'secondary'
                       }
+                      className="shrink-0"
                     >
                       {p.audit_status}
                     </Badge>
-                  </TableCell>
-                  <TableCell>
+                  </div>
+                  <div className="flex gap-2">
                     <Button 
-                      variant="ghost" 
+                      variant="outline" 
                       size="sm"
+                      className="flex-1"
                       onClick={() => handleViewDetail(p)}
                     >
-                      {p.audit_status === '待审核' ? <CheckCircle className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {p.audit_status === '待审核' ? (
+                        <><CheckCircle className="h-3 w-3 mr-1" /> 审核</>
+                      ) : (
+                        <><Eye className="h-3 w-3 mr-1" /> 查看</>
+                      )}
                     </Button>
-                  </TableCell>
-                </TableRow>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleViewProof(p)}
+                    >
+                      <Eye className="h-3 w-3 mr-1" /> 凭证
+                    </Button>
+                  </div>
+                </div>
               ))}
-            </TableBody>
-          </Table>
-        </div>
+            </div>
+          </>
+        )}
       </CardContent>
 
       {/* 审核对话框 */}
@@ -2441,32 +2581,6 @@ function AdminPaymentsTab() {
           </DialogHeader>
           {selectedPayment && (
             <div className="space-y-4">
-              <div>
-                <Label>缴费凭证 (点击图片查看原图)</Label>
-                {loadingImage ? (
-                  <div className="h-48 flex items-center justify-center bg-gray-50 border rounded mt-2">
-                    <p className="text-sm text-gray-500">图片加载中...</p>
-                  </div>
-                ) : selectedPayment.payment_image_url ? (
-                  <div 
-                    className="mt-2 cursor-zoom-in border rounded overflow-hidden"
-                    onClick={() => {
-                      const newWindow = window.open();
-                      newWindow?.document.write(`<img src="${selectedPayment.payment_image_url}" style="max-width:100%;">`);
-                    }}
-                  >
-                    <img 
-                      src={selectedPayment.payment_image_url} 
-                      alt="缴费凭证" 
-                      className="max-h-64 mx-auto"
-                    />
-                  </div>
-                ) : (
-                  <div className="h-48 flex items-center justify-center bg-gray-50 border rounded mt-2">
-                    <p className="text-sm text-gray-500">暂无凭证图片</p>
-                  </div>
-                )}
-              </div>
               <div>
                 <Label>用户申报金额</Label>
                 <Input value={`¥${selectedPayment.payment_amount}`} disabled />
@@ -2519,6 +2633,31 @@ function AdminPaymentsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 凭证图片查看对话框 */}
+      <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>缴费凭证</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center py-4">
+            {loadingImage ? (
+              <p className="text-gray-500">图片加载中...</p>
+            ) : previewImage ? (
+              <img 
+                src={previewImage} 
+                alt="缴费凭证" 
+                className="max-w-full max-h-[70vh] object-contain"
+              />
+            ) : (
+              <p className="text-gray-500">暂无凭证图片</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setPreviewImage(null)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
@@ -2535,8 +2674,8 @@ function AdminStatsTab() {
   })
   const [loading, setLoading] = useState(false)
   const [searchParams, setSearchParams] = useState({
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
+    startDate: '2026-01-01',
+    endDate: '2026-12-31'
   })
   const [cityStats, setCityStats] = useState<any[]>([])
   const [summary, setSummary] = useState({
@@ -2566,12 +2705,10 @@ function AdminStatsTab() {
       
       const totalAmount = paymentData?.reduce((sum, p) => sum + (p.audited_amount || 0), 0) || 0
       
-      // 今日使用次数
-      const today = new Date().toISOString().split('T')[0]
+      // 总使用次数
       const { count: usageCount } = await supabase
         .from('usage_records')
         .select('*', { count: 'exact', head: true })
-        .gte('use_date', today)
       
       setStats({
         totalUsers: userCount || 0,
@@ -2655,126 +2792,109 @@ function AdminStatsTab() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 顶部总计 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">用户总数</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{stats.totalUsers}</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">有效缴费次数</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{stats.totalPayments}</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">累计缴费金额</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">¥{stats.totalAmount.toFixed(2)}</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">今日使用次数</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{stats.todayUsage}</p>
-          </CardContent>
-        </Card>
+    <div className="space-y-3">
+      {/* 顶部总计 - 横向一行，金额列加宽 */}
+      <div className="bg-white rounded-lg border p-2">
+        <div className="flex gap-2 text-xs">
+          <div className="flex-[0.8] text-center border-r border-gray-200">
+            <p className="text-gray-500 mb-0.5">用户总数</p>
+            <p className="font-bold">{stats.totalUsers}</p>
+          </div>
+          <div className="flex-[0.8] text-center border-r border-gray-200">
+            <p className="text-gray-500 mb-0.5">缴费次数</p>
+            <p className="font-bold">{stats.totalPayments}</p>
+          </div>
+          <div className="flex-[2] text-center border-r border-gray-200">
+            <p className="text-gray-500 mb-0.5">累计缴费金额</p>
+            <p className="font-bold">¥{stats.totalAmount.toFixed(2)}</p>
+          </div>
+          <div className="flex-[0.8] text-center">
+            <p className="text-gray-500 mb-0.5">使用次数</p>
+            <p className="font-bold">{stats.todayUsage}</p>
+          </div>
+        </div>
       </div>
 
       {/* 地市详情统计 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>地市明细统计</CardTitle>
-          <CardDescription>按日期段查询各地区业务数据</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="bg-white rounded-lg border">
+        <div className="p-3 border-b">
+          <h3 className="text-base font-semibold">地市明细统计</h3>
+        </div>
+        <div className="p-3">
           {/* 查询工具栏 */}
-          <div className="flex flex-col md:flex-row items-end gap-4 mb-6">
-            <div className="space-y-1 flex-1">
-              <Label>起止日期</Label>
-              <div className="flex items-center gap-2">
-                <Input 
-                  type="date" 
-                  value={searchParams.startDate}
-                  onChange={(e) => setSearchParams(p => ({ ...p, startDate: e.target.value }))}
-                />
-                <span className="text-gray-500">至</span>
-                <Input 
-                  type="date" 
-                  value={searchParams.endDate}
-                  onChange={(e) => setSearchParams(p => ({ ...p, endDate: e.target.value }))}
-                />
-              </div>
-            </div>
-            <Button onClick={loadCityStats} disabled={loading}>
-              <BarChart3 className="h-4 w-4 mr-2" />
-              统计
+          <div className="flex gap-2 items-center mb-3">
+            <Input 
+              type="date" 
+              value={searchParams.startDate}
+              onChange={(e) => setSearchParams(p => ({ ...p, startDate: e.target.value }))}
+              className="h-8 text-sm flex-1"
+            />
+            <span className="text-gray-500 text-sm shrink-0">-</span>
+            <Input 
+              type="date" 
+              value={searchParams.endDate}
+              onChange={(e) => setSearchParams(p => ({ ...p, endDate: e.target.value }))}
+              className="h-8 text-sm flex-1"
+            />
+            <Button size="sm" onClick={loadCityStats} disabled={loading} className="h-8 px-2 shrink-0">
+              <BarChart3 className="h-3 w-3" />
             </Button>
           </div>
 
-          {/* 期间汇总数据 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
-            <div className="text-center border-r border-gray-200 last:border-0">
-              <p className="text-xs text-gray-500 mb-1">期间新用户</p>
-              <p className="text-xl font-bold text-blue-600">{summary.newUsers}</p>
+          {/* 期间汇总数据 - 横向一行，金额列加宽 */}
+          <div className="flex gap-2 mb-3 p-2 bg-gray-50 rounded border text-xs">
+            <div className="flex-1 text-center border-r border-gray-200">
+              <p className="text-gray-500 mb-0.5">新用户</p>
+              <p className="font-bold text-blue-600">{summary.newUsers}</p>
             </div>
-            <div className="text-center border-r border-gray-200 last:border-0">
-              <p className="text-xs text-gray-500 mb-1">期间缴费次数</p>
-              <p className="text-xl font-bold text-green-600">{summary.payments}</p>
+            <div className="flex-1 text-center border-r border-gray-200">
+              <p className="text-gray-500 mb-0.5">缴费次数</p>
+              <p className="font-bold text-green-600">{summary.payments}</p>
             </div>
-            <div className="text-center border-r border-gray-200 last:border-0">
-              <p className="text-xs text-gray-500 mb-1">期间总金额</p>
-              <p className="text-xl font-bold text-orange-600">¥{summary.amount.toFixed(2)}</p>
+            <div className="flex-[2] text-center border-r border-gray-200">
+              <p className="text-gray-500 mb-0.5">总金额</p>
+              <p className="font-bold text-orange-600">¥{summary.amount.toFixed(2)}</p>
             </div>
-            <div className="text-center border-r border-gray-200 last:border-0">
-              <p className="text-xs text-gray-500 mb-1">期间使用次数</p>
-              <p className="text-xl font-bold text-purple-600">{summary.usage}</p>
+            <div className="flex-1 text-center">
+              <p className="text-gray-500 mb-0.5">使用次数</p>
+              <p className="font-bold text-purple-600">{summary.usage}</p>
             </div>
           </div>
 
-          {/* 地市表格 */}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>地市名称</TableHead>
-                <TableHead className="text-right">新用户</TableHead>
-                <TableHead className="text-right">缴费次数</TableHead>
-                <TableHead className="text-right">总金额</TableHead>
-                <TableHead className="text-right">使用次数</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-gray-500">加载统计数据中...</TableCell>
-                </TableRow>
-              ) : cityStats.map(item => (
-                <TableRow key={item.city}>
-                  <TableCell className="font-medium">{item.city}</TableCell>
-                  <TableCell className="text-right">{item.newUsers}</TableCell>
-                  <TableCell className="text-right">{item.payments}</TableCell>
-                  <TableCell className="text-right">¥{item.amount.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">{item.usage}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+          {/* 地市列表 - 使用div布局确保手机端完美显示 */}
+          <div>
+            {/* 表头 */}
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#f9fafb', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', padding: '10px 8px' }}>
+              <div style={{ flex: '2', fontWeight: 500, color: '#374151', fontSize: '13px' }}>地市</div>
+              <div style={{ flex: '1', textAlign: 'right', fontWeight: 500, color: '#374151', fontSize: '13px' }}>新用户</div>
+              <div style={{ flex: '1', textAlign: 'right', fontWeight: 500, color: '#374151', fontSize: '13px' }}>缴费</div>
+              <div style={{ flex: '1.2', textAlign: 'right', fontWeight: 500, color: '#374151', fontSize: '13px' }}>金额</div>
+              <div style={{ flex: '1', textAlign: 'right', fontWeight: 500, color: '#374151', fontSize: '13px' }}>使用</div>
+            </div>
+            
+            {/* 数据行 */}
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '32px 8px', color: '#6b7280', fontSize: '14px' }}>加载中...</div>
+            ) : cityStats.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 8px', color: '#6b7280', fontSize: '14px' }}>暂无数据</div>
+            ) : cityStats.map((item, idx) => (
+              <div key={item.city} style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb',
+                borderBottom: '1px solid #f3f4f6',
+                padding: '10px 8px'
+              }}>
+                <div style={{ flex: '2', fontSize: '13px', fontWeight: 500 }}>{item.city}</div>
+                <div style={{ flex: '1', textAlign: 'right', fontSize: '13px' }}>{item.newUsers}</div>
+                <div style={{ flex: '1', textAlign: 'right', fontSize: '13px' }}>{item.payments}</div>
+                <div style={{ flex: '1.2', textAlign: 'right', fontSize: '13px' }}>¥{item.amount.toFixed(2)}</div>
+                <div style={{ flex: '1', textAlign: 'right', fontSize: '13px' }}>{item.usage}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

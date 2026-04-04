@@ -155,11 +155,21 @@ input, textarea {
     left: -9999px !important;
   }
   
-  /* 5. 强制所有文字换行（排除按钮、标签、Tabs等交互元素） */
-  p, span:not([class*="TabsTrigger"]), div:not([class*="TabsList"]), td, th, li, a:not([class*="tab"]):not([class*="TabsTrigger"]), h1, h2, h3, h4, h5, h6 {
+  /* 5. 强制所有文字换行（排除按钮、标签、Tabs、标题等交互元素） */
+  p, span:not([class*="TabsTrigger"]):not([class*="CardTitle"]):not([class*="card-title"]), 
+  div:not([class*="TabsList"]):not([class*="TabsTrigger"]), 
+  td, th, li, a:not([class*="tab"]):not([class*="TabsTrigger"]), 
+  h1, h2, h3, h4, h5, h6 {
     word-wrap: break-word !important;
     overflow-wrap: break-word !important;
     white-space: normal !important;
+  }
+  
+  /* 保护CardTitle不换行 */
+  [class*="CardTitle"], [class*="card-title"] {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
   
   /* 保护交互元素的文字不换行 */
