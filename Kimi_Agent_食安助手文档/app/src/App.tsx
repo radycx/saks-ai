@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { 
-  User, Lock, Phone, Search, CreditCard, History, Settings, 
+  User, Lock, Phone, Search, CreditCard, History, Settings, Home,
   Users, BookOpen, BarChart3, LogOut, Upload, CheckCircle, 
   Eye, EyeOff, Image as ImageIcon, Edit, Save
 } from 'lucide-react'
@@ -629,72 +629,171 @@ function UserView({
   onRefreshUser: () => void
 }) {
   const [activeTab, setActiveTab] = useState<'answer' | 'payment' | 'history'>('answer')
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+
+  // 双重监听：resize + matchMedia，确保DevTools设备切换时也能正确更新
+  useEffect(() => {
+    const updateMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    // 初始检查
+    updateMobile()
+    
+    // resize 监听
+    window.addEventListener('resize', updateMobile)
+    
+    // matchMedia 监听（DevTools设备模拟更可靠）
+    const mediaQuery = window.matchMedia('(max-width: 767.98px)')
+    const handleMediaChange = (e: MediaQueryListEvent) => {
+      setIsMobile(e.matches)
+    }
+    
+    try {
+      mediaQuery.addEventListener('change', handleMediaChange)
+    } catch (e) {
+      // 兼容旧浏览器
+      mediaQuery.addListener(handleMediaChange)
+    }
+    
+    return () => {
+      window.removeEventListener('resize', updateMobile)
+      try {
+        mediaQuery.removeEventListener('change', handleMediaChange)
+      } catch (e) {
+        mediaQuery.removeListener(handleMediaChange)
+      }
+    }
+  }, [])
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      {/* 左侧导航 */}
-      <div className="lg:col-span-1">
-        <Card className="sticky top-24">
-          <CardHeader>
-            <CardTitle className="text-lg">功能菜单</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <nav className="space-y-1">
-              <button
-                onClick={() => setActiveTab('answer')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'answer' 
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <Search className="h-4 w-4 mr-3" />
-                AI答题
-              </button>
-              <button
-                onClick={() => setActiveTab('payment')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'payment' 
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <CreditCard className="h-4 w-4 mr-3" />
-                缴费充值
-              </button>
-              <button
-                onClick={() => setActiveTab('history')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'history' 
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <History className="h-4 w-4 mr-3" />
-                使用记录
-              </button>
-            </nav>
-          </CardContent>
-        </Card>
-      </div>
+    <div className="relative min-h-screen">
+      {/* 移动端底部导航栏 */}
+      {isMobile && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-[9999]">
+          <div className="flex justify-around items-center h-16">
+            <button
+              onClick={() => setActiveTab('answer')}
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                activeTab === 'answer' ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
+              <Search className="h-5 w-5" />
+              <span className="text-xs mt-1">AI答题</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('payment')}
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                activeTab === 'payment' ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
+              <CreditCard className="h-5 w-5" />
+              <span className="text-xs mt-1">缴费充值</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                activeTab === 'history' ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
+              <History className="h-5 w-5" />
+              <span className="text-xs mt-1">使用记录</span>
+            </button>
+          </div>
+        </div>
+      )}
 
-      {/* 右侧内容 */}
-      <div className="lg:col-span-3">
-        {activeTab === 'answer' && (
-          <AnswerTab 
-            user={user} 
-            onRefreshUser={onRefreshUser}
-          />
-        )}
-        {activeTab === 'payment' && (
-          <PaymentTab 
-            user={user}
-            paymentInstruction={systemConfig.payment_instruction}
-            paymentQrcode={systemConfig.payment_qrcode}
-          />
-        )}
-        {activeTab === 'history' && (
-          <HistoryTab user={user} />
+      {/* 主内容区域 */}
+      <div className={`box-border ${isMobile ? 'pb-16 px-2 w-full max-w-full' : 'px-6'}`}>
+        {isMobile ? (
+          <div className="w-full max-w-full min-w-0">
+            <div className="w-full overflow-x-hidden break-words">
+              {activeTab === 'answer' && (
+                <AnswerTab 
+                  user={user} 
+                  onRefreshUser={onRefreshUser}
+                />
+              )}
+              {activeTab === 'payment' && (
+                <PaymentTab 
+                  user={user}
+                  paymentInstruction={systemConfig.payment_instruction}
+                  paymentQrcode={systemConfig.payment_qrcode}
+                />
+              )}
+              {activeTab === 'history' && (
+                <HistoryTab user={user} />
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* 左侧导航 (PC端显示) */}
+            <div className="lg:col-span-1">
+              <Card className="sticky top-24">
+                <CardHeader>
+                  <CardTitle className="text-lg">功能菜单</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <nav className="space-y-1">
+                    <button
+                      onClick={() => setActiveTab('answer')}
+                      className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+                        activeTab === 'answer' 
+                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Search className="h-4 w-4 mr-3" />
+                      AI答题
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('payment')}
+                      className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+                        activeTab === 'payment' 
+                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <CreditCard className="h-4 w-4 mr-3" />
+                      缴费充值
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('history')}
+                      className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+                        activeTab === 'history' 
+                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <History className="h-4 w-4 mr-3" />
+                      使用记录
+                    </button>
+                  </nav>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* 右侧内容 */}
+            <div className="lg:col-span-3">
+              {activeTab === 'answer' && (
+                <AnswerTab 
+                  user={user} 
+                  onRefreshUser={onRefreshUser}
+                />
+              )}
+              {activeTab === 'payment' && (
+                <PaymentTab 
+                  user={user}
+                  paymentInstruction={systemConfig.payment_instruction}
+                  paymentQrcode={systemConfig.payment_qrcode}
+                />
+              )}
+              {activeTab === 'history' && (
+                <HistoryTab user={user} />
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -1371,91 +1470,205 @@ function AdminView({
   adminUser: string | null
 }) {
   const [activeTab, setActiveTab] = useState<'questions' | 'users' | 'payments' | 'stats' | 'settings'>('questions')
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+
+  // 双重监听：resize + matchMedia，确保DevTools设备切换时也能正确更新
+  useEffect(() => {
+    const updateMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    // 初始检查
+    updateMobile()
+    
+    // resize 监听
+    window.addEventListener('resize', updateMobile)
+    
+    // matchMedia 监听（DevTools设备模拟更可靠）
+    const mediaQuery = window.matchMedia('(max-width: 767.98px)')
+    const handleMediaChange = (e: MediaQueryListEvent) => {
+      setIsMobile(e.matches)
+    }
+    
+    try {
+      mediaQuery.addEventListener('change', handleMediaChange)
+    } catch (e) {
+      // 兼容旧浏览器
+      mediaQuery.addListener(handleMediaChange)
+    }
+    
+    return () => {
+      window.removeEventListener('resize', updateMobile)
+      try {
+        mediaQuery.removeEventListener('change', handleMediaChange)
+      } catch (e) {
+        mediaQuery.removeListener(handleMediaChange)
+      }
+    }
+  }, [])
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      {/* 左侧导航 */}
-      <div className="lg:col-span-1">
-        <Card className="sticky top-24">
-          <CardHeader>
-            <CardTitle className="text-lg">管理菜单</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <nav className="space-y-1">
+    <div className="relative min-h-screen">
+      {/* 移动端底部导航栏 */}
+      {isMobile && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-[9999]">
+          <div className="flex justify-around items-center h-16">
+            <button
+              onClick={() => setActiveTab('questions')}
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                activeTab === 'questions' ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
+              <BookOpen className="h-5 w-5" />
+              <span className="text-xs mt-1">题库</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                activeTab === 'users' ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
+              <Users className="h-5 w-5" />
+              <span className="text-xs mt-1">用户</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('payments')}
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                activeTab === 'payments' ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
+              <CreditCard className="h-5 w-5" />
+              <span className="text-xs mt-1">缴费</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('stats')}
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                activeTab === 'stats' ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
+              <BarChart3 className="h-5 w-5" />
+              <span className="text-xs mt-1">统计</span>
+            </button>
+            {/* 仅 admin 账号可见系统设置 */}
+            {adminUser === 'admin' && (
               <button
-                onClick={() => setActiveTab('questions')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'questions' 
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
-                    : 'text-gray-700 hover:bg-gray-50'
+                onClick={() => setActiveTab('settings')}
+                className={`flex flex-col items-center justify-center flex-1 h-full ${
+                  activeTab === 'settings' ? 'text-blue-600' : 'text-gray-600'
                 }`}
               >
-                <BookOpen className="h-4 w-4 mr-3" />
-                题库管理
+                <Settings className="h-5 w-5" />
+                <span className="text-xs mt-1">设置</span>
               </button>
-              <button
-                onClick={() => setActiveTab('users')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'users' 
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <Users className="h-4 w-4 mr-3" />
-                用户管理
-              </button>
-              <button
-                onClick={() => setActiveTab('payments')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'payments' 
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <CreditCard className="h-4 w-4 mr-3" />
-                缴费管理
-              </button>
-              <button
-                onClick={() => setActiveTab('stats')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'stats' 
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <BarChart3 className="h-4 w-4 mr-3" />
-                数据统计
-              </button>
-              {/* 仅 admin 账号可见系统设置 */}
-              {adminUser === 'admin' && (
-                <button
-                  onClick={() => setActiveTab('settings')}
-                  className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                    activeTab === 'settings' 
-                      ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <Settings className="h-4 w-4 mr-3" />
-                  系统设置
-                </button>
-              )}
-            </nav>
-          </CardContent>
-        </Card>
-      </div>
+            )}
+          </div>
+        </div>
+      )}
 
-      {/* 右侧内容 */}
-      <div className="lg:col-span-3">
-        {activeTab === 'questions' && <AdminQuestionsTab />}
-        {activeTab === 'users' && <AdminUsersTab />}
-        {activeTab === 'payments' && <AdminPaymentsTab />}
-        {activeTab === 'stats' && <AdminStatsTab />}
-        {activeTab === 'settings' && (
-          <AdminSettingsTab 
-            systemConfig={systemConfig}
-            onConfigUpdate={onConfigUpdate}
-          />
+      {/* 主内容区域 */}
+      <div className={`box-border ${isMobile ? 'pb-16 px-2 w-full max-w-full' : 'px-6'}`}>
+        {isMobile ? (
+          <div className="w-full max-w-full min-w-0">
+            <div className="w-full overflow-x-hidden break-words">
+              {activeTab === 'questions' && <AdminQuestionsTab />}
+              {activeTab === 'users' && <AdminUsersTab />}
+              {activeTab === 'payments' && <AdminPaymentsTab />}
+              {activeTab === 'stats' && <AdminStatsTab />}
+              {activeTab === 'settings' && (
+                <AdminSettingsTab 
+                  systemConfig={systemConfig}
+                  onConfigUpdate={onConfigUpdate}
+                />
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {/* 左侧导航 (PC端显示) */}
+            <div className="md:col-span-1">
+              <Card className="sticky top-24">
+                <CardHeader>
+                  <CardTitle className="text-lg">管理菜单</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <nav className="space-y-1">
+                    <button
+                      onClick={() => setActiveTab('questions')}
+                      className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+                        activeTab === 'questions' 
+                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <BookOpen className="h-4 w-4 mr-3" />
+                      题库管理
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('users')}
+                      className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+                        activeTab === 'users' 
+                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Users className="h-4 w-4 mr-3" />
+                      用户管理
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('payments')}
+                      className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+                        activeTab === 'payments' 
+                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <CreditCard className="h-4 w-4 mr-3" />
+                      缴费管理
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('stats')}
+                      className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+                        activeTab === 'stats' 
+                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <BarChart3 className="h-4 w-4 mr-3" />
+                      数据统计
+                    </button>
+                    {/* 仅 admin 账号可见系统设置 */}
+                    {adminUser === 'admin' && (
+                      <button
+                        onClick={() => setActiveTab('settings')}
+                        className={`w-full flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+                          activeTab === 'settings' 
+                            ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <Settings className="h-4 w-4 mr-3" />
+                        系统设置
+                      </button>
+                    )}
+                  </nav>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* 右侧内容 */}
+            <div className="md:col-span-3">
+              {activeTab === 'questions' && <AdminQuestionsTab />}
+              {activeTab === 'users' && <AdminUsersTab />}
+              {activeTab === 'payments' && <AdminPaymentsTab />}
+              {activeTab === 'stats' && <AdminStatsTab />}
+              {activeTab === 'settings' && (
+                <AdminSettingsTab 
+                  systemConfig={systemConfig}
+                  onConfigUpdate={onConfigUpdate}
+                />
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -1515,14 +1728,14 @@ function AdminQuestionsTab() {
   }, [])
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>题库管理</CardTitle>
+    <Card className="w-full overflow-x-hidden">
+      <CardHeader className="px-4 py-3">
+        <CardTitle className="text-lg">题库管理</CardTitle>
         <CardDescription>查询和管理题库内容</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 py-3">
         {/* 查询条件 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           <Select 
             value={searchParams.business_type} 
             onValueChange={(v) => setSearchParams(p => ({ ...p, business_type: v }))}
@@ -1598,10 +1811,10 @@ function AdminQuestionsTab() {
           </div>
         )}
         
-        <ScrollArea className="h-[600px]">
-          <div className="space-y-4">
+        <ScrollArea className="h-[50vh] sm:h-[600px]">
+          <div className="space-y-3 sm:space-y-4">
             {questions.map((q) => (
-              <div key={q.id} className="border rounded-lg p-4 bg-white shadow-sm">
+              <div key={q.id} className="border rounded-lg p-3 bg-white shadow-sm break-words">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex gap-2">
                     <Badge variant="outline">{q.question_type}</Badge>
@@ -1792,7 +2005,8 @@ function AdminUsersTab() {
           </div>
         )}
         
-        <div className="overflow-x-auto">
+        <ScrollArea className="h-[50vh] sm:h-[500px]">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
