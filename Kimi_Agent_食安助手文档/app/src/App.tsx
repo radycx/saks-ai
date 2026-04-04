@@ -2052,7 +2052,8 @@ function AdminUsersTab() {
               ))}
             </TableBody>
           </Table>
-        </div>
+          </div>
+        </ScrollArea>
       </CardContent>
 
       {/* 编辑对话框 */}
