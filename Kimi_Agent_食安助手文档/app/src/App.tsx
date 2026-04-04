@@ -477,12 +477,46 @@ function GuestView({
   }
 
   return (
-    <div className="max-w-md mx-auto">
+    <div className="max-w-md mx-auto w-full">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'user' | 'admin')}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="user">用户入口</TabsTrigger>
-          <TabsTrigger value="admin">管理员入口</TabsTrigger>
-        </TabsList>
+        <div className="w-full mb-4" style={{ overflowX: 'visible' }}>
+          <TabsList 
+            className="flex w-full" 
+            style={{ 
+              flexWrap: 'nowrap', 
+              gap: '0',
+              width: '100%',
+              overflow: 'visible'
+            }}
+          >
+            <TabsTrigger 
+              value="user" 
+              className="flex-1 text-sm" 
+              style={{ 
+                whiteSpace: 'nowrap', 
+                overflow: 'hidden', 
+                textOverflow: 'ellipsis',
+                minWidth: '0',
+                width: '50%'
+              }}
+            >
+              用户入口
+            </TabsTrigger>
+            <TabsTrigger 
+              value="admin" 
+              className="flex-1 text-sm" 
+              style={{ 
+                whiteSpace: 'nowrap', 
+                overflow: 'hidden', 
+                textOverflow: 'ellipsis',
+                minWidth: '0',
+                width: '50%'
+              }}
+            >
+              管理员入口
+            </TabsTrigger>
+          </TabsList>
+        </div>
         
         <TabsContent value="user">
           <Card>
