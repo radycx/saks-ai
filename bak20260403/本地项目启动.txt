@@ -1,4 +1,3 @@
-在POWERSHELL
 进入“ cd E:\2026\AI开发\食安答题助手\Kimi_Agent_食安助手文档\app"
 npm install   (已安装可不执行)
 npm run dev

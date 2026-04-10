@@ -159,9 +159,11 @@ function App() {
   
   // 系统配置
   const [systemConfig, setSystemConfig] = useState<Record<string, string>>({
+    system_name: '食安AI学习答题助手',
     payment_instruction: '请扫码转账缴费，必须转账留言备注注册的手机号码，每次缴费金额30-60元，1元可使用2次AI食安员考试的生成答题功能（仅限福建省范围）。',
     answer_hint: '初次注册可试用2题，请输入准确的食安考试或练习题目内容，可以仅输入题目开头部分内容，如6-8个字，AI自动匹配生成。由于技术原因，可能会有个别食安考试题目无法识别，输入非食安考题无法生成题目和答案（仅限福建省范围）',
-    payment_qrcode: ''
+    payment_qrcode: '',
+    questions_per_yuan: '2' // 题目数/元，默认1元2题
   })
 
   // 检查本地存储的登录状态
@@ -372,7 +374,7 @@ function App() {
             <div className="flex items-center">
               <BookOpen className="h-6 w-6 text-blue-600 mr-2" />
               <h1 className="text-xl font-bold text-gray-900">
-                {systemConfig.system_name || '食安AI答题助手'}
+                {systemConfig.system_name || '食安AI学习答题助手'}
               </h1>
               {!supabaseConnected && (
                 <Badge variant="destructive" className="ml-2">未连接</Badge>
@@ -968,8 +970,43 @@ function AnswerTab({
           onRefreshUser()
           toast.success(`找到 ${fallbackData.length} 道相关题目`)
         } else {
-          setQuestions([])
-          toast.info('未找到匹配的题目，请尝试减少字数或更换关键词')
+          // 未找到，尝试按标点分割搜索
+          const result = await searchBySegments(searchText.trim())
+          if (result && result.length > 0) {
+            setQuestions(result)
+            
+            const { data: userData, error: userFetchError } = await supabase
+              .from('regular_users')
+              .select('available_questions')
+              .eq('id', user.id)
+              .single()
+            
+            if (userFetchError) throw userFetchError
+
+            const { error: deductError } = await supabase
+              .from('regular_users')
+              .update({ 
+                available_questions: (userData.available_questions || 0) - 1,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', user.id)
+            
+            if (deductError) throw deductError
+            
+            await supabase.from('usage_records').insert([{
+              user_id: user.id,
+              phone: user.phone,
+              search_content: searchText.trim(),
+              matched_count: result.length,
+              used_questions: 1
+            }])
+            
+            onRefreshUser()
+            toast.success(`找到 ${result.length} 道相关题目`)
+          } else {
+            setQuestions([])
+            toast.info('未找到匹配的题目，请尝试减少字数或更换关键词')
+          }
         }
       } else if (data && data.length > 0) {
         setQuestions(data)
@@ -1006,8 +1043,43 @@ function AnswerTab({
         onRefreshUser()
         toast.success(`找到 ${data.length} 道相关题目`)
       } else {
-        setQuestions([])
-        toast.info('未找到匹配的题目，请尝试减少字数或更换关键词')
+        // 未找到，尝试按标点分割搜索
+        const result = await searchBySegments(searchText.trim())
+        if (result && result.length > 0) {
+          setQuestions(result)
+          
+          const { data: userData, error: userFetchError } = await supabase
+            .from('regular_users')
+            .select('available_questions')
+            .eq('id', user.id)
+            .single()
+          
+          if (userFetchError) throw userFetchError
+
+          const { error: deductError } = await supabase
+            .from('regular_users')
+            .update({ 
+              available_questions: (userData.available_questions || 0) - 1,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id)
+          
+          if (deductError) throw deductError
+          
+          await supabase.from('usage_records').insert([{
+            user_id: user.id,
+            phone: user.phone,
+            search_content: searchText.trim(),
+            matched_count: result.length,
+            used_questions: 1
+          }])
+          
+          onRefreshUser()
+          toast.success(`找到 ${result.length} 道相关题目`)
+        } else {
+          setQuestions([])
+          toast.info('未找到匹配的题目，请尝试减少字数或更换关键词')
+        }
       }
     } catch (e) {
       console.error('搜索失败:', e)
@@ -1015,6 +1087,46 @@ function AnswerTab({
     } finally {
       setLoading(false)
     }
+  }
+
+  // 按标点分割搜索
+  const searchBySegments = async (text: string): Promise<Question[]> => {
+    // 标点符号正则：括号、句号、逗号、问号、感叹号等
+    const punctuationRegex = /[，。、；：？！""''\(\)\(\)\[\]【】「」\{\}\s]+/
+    
+    // 分割文本段
+    const segments = text.split(punctuationRegex).filter(s => s.trim().length >= 2)
+    
+    if (segments.length === 0) return []
+    
+    // 对每个段进行模糊搜索
+    const questionMap: Map<string, { question: Question, matchedCount: number }> = new Map()
+    
+    for (const segment of segments) {
+      const { data, error } = await supabase
+        .from('questions')
+        .select('*')
+        .ilike('question_content', `%${segment}%`)
+        .limit(100)
+      
+      if (!error && data) {
+        for (const q of data) {
+          if (questionMap.has(q.id)) {
+            const existing = questionMap.get(q.id)!
+            existing.matchedCount++
+          } else {
+            questionMap.set(q.id, { question: q, matchedCount: 1 })
+          }
+        }
+      }
+    }
+    
+    // 转换为数组并按匹配段数降序排序
+    const results = Array.from(questionMap.values())
+      .sort((a, b) => b.matchedCount - a.matchedCount)
+      .map(item => item.question)
+    
+    return results.slice(0, 50)
   }
 
   return (
@@ -1027,14 +1139,14 @@ function AnswerTab({
             {renderHintText(systemConfig.answer_hint || '')}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-2">
           <div className="flex flex-col gap-2">
             <Textarea
-              placeholder="请输入题目内容，至少6个字"
+              placeholder="请输入题目内容连续文字，至少6个字"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              className="min-h-[120px] resize-none"
-              rows={5}
+              className="min-h-[80px] resize-none" 
+              rows={3}
             />
             <Button onClick={handleSearch} disabled={loading} className="self-end">
               {loading ? '搜索中...' : '生成题目'}
@@ -1059,11 +1171,11 @@ function AnswerTab({
       </AlertDialog>
 
       {/* 搜索结果 */}
-      {hasSearched && (
+      {hasSearched && !loading && (
         <Card>
           <CardHeader>
-            <CardTitle>搜索结果</CardTitle>
-            <CardDescription>共找到 {questions.length} 道相关题目</CardDescription>
+            <CardTitle>生成结果</CardTitle>
+            <CardDescription>共生成 {questions.length} 道相关题目</CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[500px]">
@@ -1691,7 +1803,7 @@ function AdminView({
           <div className="w-full max-w-full min-w-0">
             {activeTab === 'questions' && <AdminQuestionsTab />}
             {activeTab === 'users' && <AdminUsersTab />}
-            {activeTab === 'payments' && <AdminPaymentsTab />}
+            {activeTab === 'payments' && <AdminPaymentsTab systemConfig={systemConfig} />}
             {activeTab === 'stats' && <AdminStatsTab />}
             {activeTab === 'settings' && (
               <AdminSettingsTab 
@@ -1777,7 +1889,7 @@ function AdminView({
             <div className="md:col-span-3">
               {activeTab === 'questions' && <AdminQuestionsTab />}
               {activeTab === 'users' && <AdminUsersTab />}
-              {activeTab === 'payments' && <AdminPaymentsTab />}
+              {activeTab === 'payments' && <AdminPaymentsTab systemConfig={systemConfig} />}
               {activeTab === 'stats' && <AdminStatsTab />}
               {activeTab === 'settings' && (
                 <AdminSettingsTab 
@@ -2266,7 +2378,7 @@ function AdminUsersTab() {
 // ============================================
 // 管理员-缴费管理
 // ============================================
-function AdminPaymentsTab() {
+function AdminPaymentsTab({ systemConfig }: { systemConfig: Record<string, string> }) {
   const [payments, setPayments] = useState<PaymentRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(null)
@@ -2418,7 +2530,7 @@ function AdminPaymentsTab() {
         
         if (userFetchError) throw userFetchError
 
-        const newAvailableQuestions = (userData.available_questions || 0) + Math.floor(auditedAmount * 2)
+        const newAvailableQuestions = (userData.available_questions || 0) + Math.round(auditedAmount * parseFloat(systemConfig.questions_per_yuan || '2'))
         const newTotalAmount = (userData.total_payment_amount || 0) + auditedAmount
         const newValidCount = (userData.valid_payment_count || 0) + 1
 
@@ -2909,9 +3021,11 @@ function AdminSettingsTab({
   systemConfig: Record<string, string>
   onConfigUpdate: () => void
 }) {
+  const [systemName, setSystemName] = useState(systemConfig.system_name || '食安AI学习答题助手')
   const [paymentInstruction, setPaymentInstruction] = useState(systemConfig.payment_instruction)
   const [answerHint, setAnswerHint] = useState(systemConfig.answer_hint)
   const [qrcodePreview, setQrcodePreview] = useState(systemConfig.payment_qrcode)
+  const [questionsPerYuan, setQuestionsPerYuan] = useState(systemConfig.questions_per_yuan || '2')
   const [saving, setSaving] = useState(false)
 
   const handleQrcodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2946,9 +3060,11 @@ function AdminSettingsTab({
       
       // 更新配置
       const configs = [
+        { key: 'system_name', value: systemName },
         { key: 'payment_instruction', value: paymentInstruction },
         { key: 'answer_hint', value: answerHint },
-        { key: 'payment_qrcode', value: qrcodeUrl }
+        { key: 'payment_qrcode', value: qrcodeUrl },
+        { key: 'questions_per_yuan', value: questionsPerYuan }
       ]
       
       for (const config of configs) {
@@ -2981,6 +3097,29 @@ function AdminSettingsTab({
         <CardDescription>配置系统参数</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div>
+          <Label>系统名称</Label>
+          <Input
+            value={systemName}
+            onChange={(e) => setSystemName(e.target.value)}
+            className="mt-1"
+          />
+          <p className="text-xs text-gray-500 mt-1">显示在页面顶部的系统名称</p>
+        </div>
+        
+        <div>
+          <Label>题目数/元</Label>
+          <Input
+            type="number"
+            value={questionsPerYuan}
+            onChange={(e) => setQuestionsPerYuan(e.target.value)}
+            min={0.5}
+            step={0.1}
+            className="mt-1"
+          />
+          <p className="text-xs text-gray-500 mt-1">每1元可获得的题目数，支持小数，计算时四舍五入</p>
+        </div>
+        
         <div>
           <Label>缴费说明</Label>
           <Textarea
