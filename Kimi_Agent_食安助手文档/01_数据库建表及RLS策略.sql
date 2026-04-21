@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.questions (
     option_h TEXT,
     option_i TEXT,
     option_j TEXT,
+    analysis TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -36,6 +37,7 @@ COMMENT ON TABLE public.questions IS '题库表';
 COMMENT ON COLUMN public.questions.question_type IS '题目类型: 单选题/多选题/判断题';
 COMMENT ON COLUMN public.questions.business_type IS '业态类型: 食品生产/食品流通/餐饮/特殊食品生产/特殊食品流通';
 COMMENT ON COLUMN public.questions.is_required IS '是否必考题: 是/否';
+COMMENT ON COLUMN public.questions.analysis IS '题目解析';
 
 -- 1.2 普通用户表
 CREATE TABLE IF NOT EXISTS public.regular_users (

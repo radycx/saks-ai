@@ -67,6 +67,7 @@ interface Question {
   option_h?: string
   option_i?: string
   option_j?: string
+  analysis?: string
 }
 
 interface PaymentRecord {
@@ -1134,7 +1135,7 @@ function AnswerTab({
       {/* 题目搜索区域 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">题目生成</CardTitle>
+          <CardTitle className="text-lg">生成题目解析</CardTitle>
           <div className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded border border-blue-100">
             {renderHintText(systemConfig.answer_hint || '')}
           </div>
@@ -1149,7 +1150,7 @@ function AnswerTab({
               rows={3}
             />
             <Button onClick={handleSearch} disabled={loading} className="self-end">
-              {loading ? '搜索中...' : '生成题目'}
+              {loading ? '搜索中...' : '生成题目解析'}
             </Button>
           </div>
         </CardContent>
@@ -1203,6 +1204,12 @@ function AnswerTab({
                       </div>
                       <div className="mt-3 pt-3 border-t">
                         <p className="text-green-600 font-medium">答案: {q.answer}</p>
+                        {q.analysis && (
+                          <div className="mt-3 pt-3 border-t border-dashed border-gray-300">
+                            <p className="text-sm font-medium text-blue-600 mb-1">解析：</p>
+                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{q.analysis}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))
