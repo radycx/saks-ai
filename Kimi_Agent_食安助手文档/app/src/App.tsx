@@ -770,7 +770,7 @@ function UserView({
       <div className={`box-border ${isMobile ? 'pb-16 px-2 w-full max-w-full' : 'px-6'}`}>
         {isMobile ? (
           <div className="w-full max-w-full min-w-0">
-            <div className="w-full overflow-x-hidden break-words">
+            <div className="w-full overflow-x-hidden">
               {activeTab === 'answer' && (
                 <AnswerTab 
                   user={user} 
@@ -882,6 +882,116 @@ function AnswerTab({
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [showLimitDialog, setShowLimitDialog] = useState(false)
+  const [expandedAnalysis, setExpandedAnalysis] = useState<Set<string>>(new Set())
+
+  // 格式化解析内容，添加换行和分段
+  const formatAnalysis = (text: string): React.ReactNode[] => {
+    if (!text) return []
+      
+    // 方法：先按【标题】分割，再按选项字母分割
+    const result: React.ReactNode[] = []
+    
+    // 将文本按【标题】分割成块
+    const blocks = text.split(/（【|【/g)
+    
+    blocks.forEach((block, blockIndex) => {
+      if (!block.trim()) return
+      
+      // 检查是否以】结束（说明这是一个标题）
+      const titleMatch = block.match(/^([^】]*】)(.*)/s)
+      
+      if (titleMatch) {
+        // 这是一个带标题的块
+        const title = '【' + titleMatch[1]
+        const content = titleMatch[2]
+        
+        // 添加标题
+        result.push(
+          <p key={`title-${blockIndex}`} className="font-bold text-blue-700 mt-2 mb-1">
+            {title}
+          </p>
+        )
+        
+        // 处理内容部分
+        if (content.trim()) {
+          processContent(content, result, blockIndex)
+        }
+      } else {
+        // 普通内容块
+        processContent(block, result, blockIndex)
+      }
+    })
+    
+    return result
+  }
+  
+  // 处理内容部分，按选项字母和正确答案分割
+  const processContent = (content: string, result: React.ReactNode[], baseIndex: number) => {
+    // 按选项字母分割
+    const parts = content.split(/([A-F]\.\s)/g)
+    
+    parts.forEach((part, partIndex) => {
+      if (!part.trim()) return
+      
+      // 如果是选项字母
+      if (part.match(/^[A-F]\.\s$/)) {
+        return // 选项字母会和后面的内容一起处理
+      }
+      
+      // 检查是否以选项字母开头
+      const optionMatch = part.match(/^([A-F]\.\s)(.*)/s)
+      if (optionMatch) {
+        // 选项行
+        result.push(
+          <p key={`opt-${baseIndex}-${partIndex}`} className="mb-1 leading-relaxed">
+            <span className="font-bold text-gray-800">{optionMatch[1]}</span>
+            <span>{optionMatch[2]}</span>
+          </p>
+        )
+        return
+      }
+      
+      // 检查是否包含正确答案
+      const answerMatch = part.match(/(正确答案[：:].*)/s)
+      if (answerMatch && part.indexOf(answerMatch[1]) > 0) {
+        // 在正确答案前分割
+        const beforeAnswer = part.substring(0, part.indexOf(answerMatch[1]))
+        const answerText = answerMatch[1]
+        
+        if (beforeAnswer.trim()) {
+          result.push(
+            <p key={`before-${baseIndex}-${partIndex}`} className="mb-1 leading-relaxed">
+              {beforeAnswer.trim()}
+            </p>
+          )
+        }
+        
+        result.push(
+          <p key={`answer-${baseIndex}-${partIndex}`} className="font-bold text-green-700 mt-1 mb-1">
+            {answerText.trim()}
+          </p>
+        )
+        return
+      }
+      
+      // 如果是正确答案开头
+      if (part.match(/^正确答案[：:]/)) {
+        result.push(
+          <p key={`ans-${baseIndex}-${partIndex}`} className="font-bold text-green-700 mt-1 mb-1">
+            {part.trim()}
+          </p>
+        )
+        return
+      }
+      
+      // 普通内容
+      result.push(
+        <p key={`text-${baseIndex}-${partIndex}`} className="mb-1 leading-relaxed">
+          {part.trim()}
+        </p>
+      )
+    })
+  }
 
   // 处理双引号内容为红色加粗
   const renderHintText = (text: string) => {
@@ -1150,7 +1260,7 @@ function AnswerTab({
               rows={3}
             />
             <Button onClick={handleSearch} disabled={loading} className="self-end">
-              {loading ? '搜索中...' : '生成题目解析'}
+              {loading ? 'AI生成中...' : '生成题目解析'}
             </Button>
           </div>
         </CardContent>
@@ -1176,7 +1286,7 @@ function AnswerTab({
         <Card>
           <CardHeader>
             <CardTitle>生成结果</CardTitle>
-            <CardDescription>共生成 {questions.length} 道相关题目</CardDescription>
+            <CardDescription>共生成 {questions.length} 道相关题目解析</CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[500px]">
@@ -1205,10 +1315,32 @@ function AnswerTab({
                       <div className="mt-3 pt-3 border-t">
                         <p className="text-green-600 font-medium">答案: {q.answer}</p>
                         {q.analysis && (
-                          <div className="mt-3 pt-3 border-t border-dashed border-gray-300">
-                            <p className="text-sm font-medium text-blue-600 mb-1">解析：</p>
-                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{q.analysis}</p>
-                          </div>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="mt-2 h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => {
+                                const newExpanded = new Set(expandedAnalysis)
+                                if (newExpanded.has(q.id)) {
+                                  newExpanded.delete(q.id)
+                                } else {
+                                  newExpanded.add(q.id)
+                                }
+                                setExpandedAnalysis(newExpanded)
+                              }}
+                            >
+                              {expandedAnalysis.has(q.id) ? '收起解析 ▲' : '查看解析 ▼'}
+                            </Button>
+                            {expandedAnalysis.has(q.id) && (
+                              <div className="mt-2 pt-2 border-t border-dashed border-gray-300">
+                                <p className="text-sm font-medium text-blue-600 mb-1">解析：</p>
+                                <div className="text-sm text-gray-700">
+                                  {formatAnalysis(q.analysis)}
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

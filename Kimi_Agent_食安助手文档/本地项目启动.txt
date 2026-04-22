@@ -2,3 +2,5 @@
 进入“ cd E:\2026\AI开发\食安答题助手\Kimi_Agent_食安助手文档\app"
 npm install   (已安装可不执行)
 npm run dev
+
+打开浏览器，访问 http://localhost:5173，登录用户账号，进入"AI答题"页面验证功能。
